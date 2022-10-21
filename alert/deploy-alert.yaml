@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: prometheus
+  labels:
+    app: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus-admin-user
+      containers:
+      - name: prometheus
+        image: prom/prometheus
+        imagePullPolicy: IfNotPresent
+        command:
+        - "/bin/prometheus"
+        args:
+        - "--config.file=/etc/prometheus/prometheus.yml"
+        - "--storage.tsdb.path=/prometheus"
+        - "--storage.tsdb.retention=24h"
+        - "--web.enable-admin-api"  # 控制对admin HTTP API的访问，其中包括删除时间序列等功能
+        - "--web.enable-lifecycle"  # 支持热更新，直接执行localhost:9090/-/reload立即生效
+        ports:
+        - containerPort: 9090
+          protocol: TCP
+          name: http
+        volumeMounts:
+        - mountPath: "/prometheus"
+          subPath: prometheus
+          name: data
+        - mountPath: "/etc/prometheus"
+          name: config-volume
+        - name: k8s-cert
+          mountPath: /var/run/secrets/kubernetes.io/k8s-certs/etcd/
+      - name: alertmanager
+        image: prom/alertmanager
+        imagePullPolicy: IfNotPresent
+        args:
+        - "--config.file=/etc/alertmanager/config.yml"
+        - "--storage.path=/alertmanager/data"
+        - "--log.level=debug"
+        volumeMounts:
+        - name: alert-config
+          mountPath: /etc/alertmanager
+        ports:
+        - name: http
+          containerPort: 9093    
+      securityContext:
+        runAsUser: 0
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: prometheus-pvc
+      - configMap:
+          name: prometheus-config
+        name: config-volume
+      - name: k8s-cert
+        secret:
+          secretName: etcd-certs
+      - name: alert-config
+        configMap:
+          name: alertmanager
+      - name: alert-volume
+        persistentVolumeClaim:
+          claimName: prometheus-pvc
+      nodeSelector:             ## 设置node筛选器，在特定label的节点上启动
+        prometheus: "true"
