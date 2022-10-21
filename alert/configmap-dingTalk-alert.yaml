@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager
+  namespace: prometheus
+data:
+  config.yml: |-
+    global:
+      resolve_timeout: 1m
+      smtp_smarthost: 'smtp.163.com:25'
+      smtp_from: 'yk16845@163.com'
+      smtp_auth_username: 'yk16845@163.com'
+      smtp_auth_password: 'VSEPLSKVDCXTSAWD'
+      smtp_require_tls: false
+    route:
+      group_by: [alertname]
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 10m
+      receiver: webhook11
+    receivers:
+    - name: 'webhook11'
+      webhook_configs:
+      - url: 'http://10.10.36.183:8060/dingtalk/webhook1/send'
+        send_resolved: true
